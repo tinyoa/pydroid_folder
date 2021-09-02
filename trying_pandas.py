@@ -1,5 +1,4 @@
 
-
 import os
 
 
@@ -45,7 +44,7 @@ df_secondname = pd.read_csv('secondnames.csv', index_col='ind');
 print(df_secondname);
 
 
-#выводу индекс элемента
+#выведу индекс элемента
 print('Sergeev index:',df_secondname[df_secondname['secondname'] == 'Сергеев'].index.tolist());
 
 #индекс несуществующего элемента
@@ -67,6 +66,7 @@ print();
 print('ищу определенную строку');
 print(df_names[df_names['name'] == 'паша']['name'].values[0]);
 print();
+
 # добавляю к значению ячейки еще одно
 df_names.loc[(df_names['name'] == 'паша'), 'name'] = df_names[df_names['name'] == 'паша']['name'].values[0] + 'валера';
 #print(df_names['name'] == 'паша');
@@ -82,4 +82,15 @@ if 'cnt'  in df_names.columns:
 	print('колонка cnt есть в датафрейме')
 else:
 	print('в датафрейме нет колонки cnt');
+
+# скопировать только структуру датафрейма
+df_names2 = pd.DataFrame(columns=df_names.columns);
+print('df_names2.index.name:', df_names2.index.name, '\n');
+print('df_names2', df_names2);
+
+#после копирования добавить снизу несколько строк
+
+print(df_names.loc[1:5]);
+
+
 

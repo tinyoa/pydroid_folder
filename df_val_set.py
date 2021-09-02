@@ -59,6 +59,20 @@ class Df_fio(Df_val_set):
 			ind_list = self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].index.tolist();
 		return ind_list[0];
 	
+	#поиск по неполным данным
+	def get_rows_like(self, surname = '', name = '', secondname = ''):
+		name = name.lower().strip();
+		ind_list = self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].index.tolist();
+		if surname != '':
+			ret_df = self.df[(self.df['surname'] == surname)].copy;
+		
+		
+		if ind_list ==[]:
+			hashmd5 = hashlib.md5((surname + name + secondname).encode()).hexdigest();
+			self.df = self.df.append({'surname': surname, 'name': name, 'secondname': secondname, 'md5': hashmd5}, ignore_index=True);
+			ind_list = self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].index.tolist();
+		return ind_list[0];
+	
 		# appended добавляет имя name и возвращает 1,  если name уже в списке,то возвращает 0
 	def appended(self, surname = '', name = '', secondname = ''):
 		name = name.lower().strip();
@@ -160,7 +174,8 @@ class Df_val_cnt(Df_val_set):
 	
 	# найти датафрейм походящих
 	def find_rows(self, name):
-		return self.df[self.df[self.val_col_name] == name];
+		#print('find_rows', name);
+		return self.df[self.df[self.val_col_name] == name].copy();
 
 
 class Df_link():
@@ -180,8 +195,7 @@ class Df_link():
 		#self.df_file_name = 'names.csv';
 		if os.path.isfile(df_file_name):
 			self.df = pd.read_csv(df_file_name, index_col = ind_col_name);
-			print(self.df);
-			print('df_file_name: ', df_file_name);
+			#print(self.df);
 			# проверю существование колонок. Если нету - создам
 			for el in [lnk_hash, l_code, r_code, l_hash, r_hash]:
 				if not el in self.df.columns:
