@@ -49,9 +49,11 @@ class Df_fio(Df_val_set):
 			#print('columnlist: ', self.column_list);
 			self.df = pd.DataFrame(columns = self.column_list);
 	
-	# получить индекс элемента name
+	# получить индекс элемента (surname,name, secondname)
 	def get_index(self, surname = '', name = '', secondname = ''):
+		surname = surname.lower().strip();
 		name = name.lower().strip();
+		secondname =secondname.lower().strip();
 		ind_list = self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].index.tolist();
 		if ind_list ==[]:
 			hashmd5 = hashlib.md5((surname + name + secondname).encode()).hexdigest();
@@ -59,19 +61,36 @@ class Df_fio(Df_val_set):
 			ind_list = self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].index.tolist();
 		return ind_list[0];
 	
-	#поиск по неполным данным
+	#поиск по неполным данным, если совпадет surname или name или secondname
 	def get_rows_like(self, surname = '', name = '', secondname = ''):
+		surname = surname.lower().strip();
 		name = name.lower().strip();
+		secondname =secondname.lower().strip();
 		ind_list = self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].index.tolist();
+		ref_df = pd.DataFrame(columns = self.df.columns);
 		if surname != '':
-			ret_df = self.df[(self.df['surname'] == surname)].copy;
+			ret_df = pd.concat([ret_df, self.df[(self.df['surname'] == surname)]]);
+	
+	# найти датафрейм подходящих строк
+	def find_rows(self, name, surname, secondname):
+		#print('find_rows',
+		# перепроверить
+		surname = surname.lower().strip();
+		name = name.lower().strip();
+		secondname =secondname.lower().strip();
+		return self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].copy();
 		
+	def find_rows_name(self, name):
+		name = name.lower().strip();
+		return self.df[(self.df['name'] == name)].copy();
 		
-		if ind_list ==[]:
-			hashmd5 = hashlib.md5((surname + name + secondname).encode()).hexdigest();
-			self.df = self.df.append({'surname': surname, 'name': name, 'secondname': secondname, 'md5': hashmd5}, ignore_index=True);
-			ind_list = self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].index.tolist();
-		return ind_list[0];
+	def find_rows_surname(self, surname):
+		surname = surname.lower().strip();
+		return self.df[(self.df['surname'] == surname)].copy();
+	
+	def find_rows_surname(self, secondname):
+		secondname= secondname.lower().strip();
+		return self.df[(self.df['secondname'] == secondname)].copy();
 	
 		# appended добавляет имя name и возвращает 1,  если name уже в списке,то возвращает 0
 	def appended(self, surname = '', name = '', secondname = ''):
@@ -89,7 +108,7 @@ class Df_fio(Df_val_set):
 	
 	def fix(self):
 	    print('fix');
-	    for  i, row in self.df.iterrows():
+	    for i, row in self.df.iterrows():
 	    	row['surname'] = row['surname'].lower().strip();
 	    	row['name'] = row['name'].lower().strip();
 	    	row['secondname'] = row['secondname'].lower().strip();
@@ -97,7 +116,7 @@ class Df_fio(Df_val_set):
 	def delete(self, surname, name, secondname):
 	    name = name.lower().strip();
 	    surname = surname.lower().strip();
-	    secondname = secondname.lower().strip();
+	    secondname= secondname.lower().strip();
 	    print('deleting "', surname, '", "', name, '", "', secondname, '"');
 	    list_ind=self.df[((self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name))].index.to_list();
 	    print('deleting index list: ', list_ind);
@@ -131,6 +150,7 @@ class Df_val_cnt(Df_val_set):
 		else:
 			self.df = pd.DataFrame(columns = [self.val_col_name, self.CNT_COL_NAME]);
 	
+	# проверить, есть ли элемент name в списке.
 	def in_list(self, name):
 		name = name.lower().strip();
 		list_ind = self.df[self.df[self.val_col_name] == name].index.tolist();
@@ -139,13 +159,15 @@ class Df_val_cnt(Df_val_set):
 		else:
 			return len(list_ind);
 	
+	# увеличить счетчик элемента name
 	def inc_cnt(self, name):
 		self.df.loc[(self.df[self.val_col_name] == name), self.CNT_COL_NAME] = self.df[self.df[self.val_col_name] == name][self.CNT_COL_NAME].values[0] + 1;
-		
+	
+	# добавить элемент name
 	def ins_element(self, name):
 		self.df = self.df.append({self.val_col_name: name, self.CNT_COL_NAME: 1}, ignore_index=True);
 
-	# получить индекс элемента name, если нету,то вставить и получить.
+	# получить индекс элемента name, если нету, то вставить и получить.
 	def get_index(self, name):
 		name = name.lower().strip();
 		if self.in_list(name):
@@ -154,7 +176,7 @@ class Df_val_cnt(Df_val_set):
 			self.ins_element(name);
 		return self.df[self.df[self.val_col_name] == name].index.tolist()[0];
 		
-	#проверить, что элемент уже есть, если нет, то создать
+	#проверить, что элемент уже есть, если нет, то создать. Если элемента не было,то добавить и вернуть 0, если элемент был,то увеличить счетчик,вернуть 1
 	def appended(self, name):
 		name = name.lower().strip();
 		if self.in_list(name):
@@ -164,15 +186,18 @@ class Df_val_cnt(Df_val_set):
 			self.ins_element(name);
 			return 1;
 	
+	# отметить элемент name
 	def append(self, name):
 		print('Df_val_cnt append', name);
 		self.appended(name);
 	
+	# сохранить список в файл
 	def save(self):
 		print('df_name_file: ', self.df_file_name);
 		self.df.to_csv(self.df_file_name, columns=[self.val_col_name, self.CNT_COL_NAME], index_label=self.IND_COL_NAME);
 	
-	# найти датафрейм походящих
+
+	# найти датафрейм походящих строк
 	def find_rows(self, name):
 		#print('find_rows', name);
 		return self.df[self.df[self.val_col_name] == name].copy();
