@@ -219,8 +219,8 @@ class Df_val_cnt(Df_val_set):
 		return self.df[self.df[self.val_col_name] == name].copy();
 
 
-class Df_link():
-	'класс связи'
+class Df_link_lst():
+	'класс связи двух кодов'
 	
 	def __init__(self, df_file_name = 'filename.csv', l_code = 'l_code', r_code = 'r_code', l_hash = 'l_hash', r_hash = 'r_hash', ind_col_name = 'ind', lnk_hash = 'lnk_hash'):
 		"инициализация"
@@ -232,7 +232,7 @@ class Df_link():
 		self.ind_col_name = ind_col_name;
 		self.lnk_hash = lnk_hash;
 		
-		print('--init Df_link with "', df_file_name, '"');
+		print('--init Df_link_lst with "', df_file_name, '"');
 		#self.df_file_name = 'names.csv';
 		if os.path.isfile(df_file_name):
 			self.df = pd.read_csv(df_file_name, index_col = ind_col_name);
@@ -324,7 +324,6 @@ class Df_hub(Df_val_cnt):
         счетчик, вернуть 1"""
 		bk = bk.lower().strip();
 		if self._in_list_codes(bk, src_system_id):
-			self.inc_cnt(bk, src_system_id);
 			return 0;
 		else:
 			self._ins_element(bk, src_system_id);
@@ -353,6 +352,100 @@ class Df_hub(Df_val_cnt):
                  , index_label=self.ind_col_name);
 
 		
+
+class Df_link(Df_val_cnt):
+	"класс связи по Data Vault"
+	def __init__(self, df_file_name = 'df_link.csv'
+              , left_id = 'left_id'
+              , right_id = 'right_id'
+              , from_dt = 'from_dt'
+              , to_dt = 'to_dt'
+              , ind_col_name = 'ind'):
+		"инициализация"
+		self.df_file_name = df_file_name;
+		self.left_id = left_id;
+		self.right_id = right_id;
+		self.from_dt = from_dt;
+		self.to_dt = to_dt;
+		self.ind_col_name = ind_col_name;
+		
+		print('--init Df_link with "', df_file_name, '"');
+		
+		if os.path.isfile(df_file_name):
+			self.df = pd.read_csv(df_file_name, index_col = ind_col_name);
+			#print(self.df);
+			# проверю существование колонок. Если нету - создам
+			for el in [left_id, right_id, from_dt, to_dt]:
+				if not el in self.df.columns:
+					self.df[el] = None;
+					self.df.loc[:, el] = 0;
+		else:
+			self.df = pd.DataFrame(columns = [left_id, right_id, from_dt, to_dt]);
+			
+	def _in_list_codes(self, left_id, right_id):
+		"получить список индексов строк соответствующих кодам left_id, right_id"
+		bk = bk.lower().strip();
+		list_ind = self.df[(self.df[self.left_id] == left_id)
+				&(self.df[self.right_id] == right_id)].index.tolist();
+		if list_ind ==[]:
+			return 0
+		else:
+			return len(list_ind);
+	
+	def _ins_element(self, left_id, right_id):
+		"добавить элемент bk из источника src_system_id"
+		self.df = self.df.append({self.left_id: left_id
+                            , self.right_id: right_id
+                            , self.from_dt: datetime.now()
+                            , self.to_dt: '9999-12-31 23:59:59.99991'
+                            }, ignore_index=True);
+
+
+	def get_index(self, left_id, right_id):
+		"получить индекс элемента name, если нету, то вставить и получить."
+		if self._in_list_codes(left_id, right_id) == 0:
+			self._ins_element(left_id, right_id);
+		return self.df[(self.df[self.left_id] == left_id)
+                 &(self.df[self.right_id] == right_id)].index.tolist()[0];
+    
+	def appended(self, left_id, right_id):
+		"""проверить и добавить элемент если нет. 
+        Если элемента не было, то добавить и вернуть 0, 
+        если элемент был, то вернуть 1"""
+		if self._in_list_codes(left_id, right_id) == 0:
+			return 0;
+		else:
+            _ins_element(left_id, right_id);
+			return 1;
+    
+	def append(self, left_id, right_id):
+		"отметить элемент name"
+		print('Df_val_cnt append', bk, src_system_id);
+		self.appended(left_id, right_id);
+        
+	def delete(self, left_id, right_id):
+		"удалить запись с фамилией, именем, отчеством = surname, name, secondname"
+		'''bk = bk.lower().strip();
+		print('deleting "', bk, '", "', src_system_id, '"');
+		list_ind=self.df[((self.df['bk'] == bk) 
+					& (self.df['src_system_id'] == src_system_id))].index.to_list();
+		print('deleting index list: ', list_ind);
+		self.df.drop(list_ind, inplace=True);'''
+		pass;
+        
+    def change(left_id, right_id):
+        """заменить привязку right_id к другому left_id. 
+        Закрыть старую привязку left_id к right_id. 
+        Открыть сегодняшним днем новую привязку.
+        """
+        pass;
+        
+	def save(self):
+		"сохранить"
+		print('df_name_file: ', self.df_file_name);
+		self.df.to_csv(self.df_file_name
+				, columns=[self.bk, self.src_system_id, self.load_dt]
+                 , index_label=self.ind_col_name);
 
 			
 			
@@ -408,13 +501,13 @@ class Df_hub(Df_val_cnt):
 
 # проверка Df_hub
 dfhfio = Df_hub('h_name.csv');
-print(dfhfio.get_index('Famil', 1));
+print('dfhfio.get_index (Famil): ', dfhfio.get_index('Famil', 1));
 dfhfio.append('Dgeronimov', 1);
 print();
 dfhfio.print();
-print(dfhfio.get_index('Dgeronimov', 1));
+print('dfhfio.get_index (Dgeronimov): ', dfhfio.get_index('Dgeronimov', 1));
 dfhfio.delete('   Famil', 1);
-print(dfhfio.appended('Ismailov', 1));
+print('dfhfio.appended (Ismailov): ', dfhfio.appended('Ismailov', 1));
 print();
 dfhfio.print();
 #fhfio.print();
