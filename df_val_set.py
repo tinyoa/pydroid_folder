@@ -85,7 +85,9 @@ class Df_fio(Df_val_set):
 		surname = surname.lower().strip();
 		name = name.lower().strip();
 		secondname =secondname.lower().strip();
-		return self.df[(self.df['surname'] == surname) & (self.df['secondname'] == secondname) & (self.df['name'] == name)].copy();
+		return self.df[(self.df['surname'] == surname) & _
+				 (self.df['secondname'] == secondname) & _
+				 (self.df['name'] == name)].copy();
 		
 	def find_rows_name(self, name):
 		"вернуть датафрейм со строками где имя = name"
@@ -399,7 +401,7 @@ class Df_hub(Df_val_cnt):
 		self.appended(bk, src_system_id);
         
 	def delete(self, bk, src_system_id):
-		"удалить запись с фамилией, именем, отчеством = surname, name, secondname"
+		"удалить запись с указанным бизнес-ключём"
 		'''bk = bk.lower().strip();
 		print('deleting "', bk, '", "', src_system_id, '"');
 		list_ind=self.df[((self.df['bk'] == bk) 
@@ -418,13 +420,15 @@ class Df_hub(Df_val_cnt):
 
 class Df_link(Df_val_cnt):
 	"класс связи по Data Vault"
+	CODE_COL_NAME = 'code';
+	
 	def __init__(self, df_file_name = 'df_link.csv'
-              , link_type = 0
-              , left_id = 'left_id'
-              , right_id = 'right_id'
-              , from_dt = 'from_dt'
-              , to_dt = 'to_dt'
-              , ind_col_name = 'ind'):
+				, link_type = 0
+            	, left_id = 'left_id'
+            	, right_id = 'right_id'
+            	, from_dt = 'from_dt'
+            	, to_dt = 'to_dt'
+            	, ind_col_name = 'ind'):
 		"инициализация"
 		self.df_file_name = df_file_name;
 		self.link_type = link_type;   # тип соединения (0 - O2O, 1 - O2M, 2 - M2M, 3 - M2O)
@@ -433,6 +437,7 @@ class Df_link(Df_val_cnt):
 		self.from_dt = from_dt;
 		self.to_dt = to_dt;
 		self.ind_col_name = ind_col_name;
+		self.code_col_name = self.CODE_COL_NAME;
 		
 		print('--init Df_link with "', df_file_name, '"');
 		
@@ -440,69 +445,128 @@ class Df_link(Df_val_cnt):
 			self.df = pd.read_csv(df_file_name, index_col = ind_col_name);
 			#print(self.df);
 			# проверю существование колонок. Если нету - создам
-			for el in [left_id, right_id, from_dt, to_dt]:
+			for el in [self.code_col_name, left_id, right_id, from_dt, to_dt]:
 				if not el in self.df.columns:
 					self.df[el] = None;
 					self.df.loc[:, el] = 0;
+			self.code = self.df[self.code_col_name].max() + 1;
 		else:
-			self.df = pd.DataFrame(columns = [left_id, right_id, from_dt, to_dt]);
+			self.df = pd.DataFrame(columns = [self.code_col_name, left_id, right_id, from_dt, to_dt]);
+			self.code = 1;
 			
 	def _in_list_codes(self, left_id, right_id):
-		"получить список индексов строк соответствующих кодам left_id, right_id"
+		"получить код строк соответствующих кодам left_id, right_id"
 		list_ind = self.df[(self.df[self.left_id] == left_id)
-				&(self.df[self.right_id] == right_id)].index.tolist();
+				&(self.df[self.right_id] == right_id)][self.CODE_COL_NAME].tolist();    #.index.tolist();
 		if list_ind ==[]:
 			return 0
 		else:
-			return len(list_ind);
+			return list_ind[0];	#len(list_ind);
 	
 	def _in_list_left(self, left_id):
 		"Возвращает признак наличия левого кода среди активных связей"
-		list_ind = self.df[(self.df[self.left_id] == left_id)].index.tolist();
+		list_ind = self.df[(self.df[self.left_id] == left_id)][self.CODE_COL_NAME].tolist();    #.index.tolist();
 		if list_ind ==[]:
 			return 0
 		else:
-			return len(list_ind);
+			return list_ind[0];	#len(list_ind);
     
 	def _in_list_right(self, right_id):
 		"Возвращает признак наличия правого кода среди активных связей"
-		list_ind = self.df[(self.df[self.right_id] == right_id)].index.tolist();
+		list_ind = self.df[(self.df[self.right_id] == right_id)][self.CODE_COL_NAME].tolist();    #.index.tolist();
 		if list_ind ==[]:
 			return 0
 		else:
-			return len(list_ind);
+			return list_ind[0];	#len(list_ind);
     
 	def _ins_element(self, left_id, right_id):
 		"добавить связь left_id и right_id"
-		self.df = self.df.append({self.left_id: left_id
+		self.df = self.df.append({self.code_col_name: self.code 
+							, self.left_id: left_id
                             , self.right_id: right_id
                             #, self.from_dt: datetime.now()
                             , self.from_dt: str(date.today())
                             #, self.to_dt: '9999-12-31 23:59:59.99991'
                             , self.to_dt: '9999-12-31'
                             }, ignore_index=True);
+		self.code += 1;
 
 
 	def get_index(self, left_id, right_id):
-		"получить индекс элемента name, если нету, то вставить и получить."
-		if self._in_list_codes(left_id, right_id) == 0:
-			self._ins_element(left_id, right_id);
-		return self.df[(self.df[self.left_id] == left_id)
-                 &(self.df[self.right_id] == right_id)].index.tolist()[0];
+		"получить индекс связи left_id и right_id, если нету, то вставить и получить."
+		#print(str(self._in_list_left(left_id)));
+		#print("self.link_type: " + str(self.link_type));
+		#print("_in_list_left: " , self._in_list_left(left_id) );
+		#print("_in_list_right: " , str(self._in_list_right(right_id)));
+		
+		# тип соединения (0 - O2O, 1 - O2M, 2 - M2M, 3 - M2O)
+		# определяет как именно проверяется вхождение
+		if (self.link_type == 0):
+			if (self._in_list_left(left_id)==0 and self._in_list_right(right_id)==0): 
+				self._ins_element(left_id, right_id);
+				print("type 0 ins");
+			else:
+				# если тип соединения 0 (O2O), то считается вхождение 
+				# и левого ид и правого
+				return self.df[(self.df[self.left_id] == left_id)
+                    |(self.df[self.right_id] == right_id)][self.CODE_COL_NAME].tolist()[0];    #.index.tolist()[0];
+        # 1 - O2M
+		elif (self.link_type == 1):
+			if(self._in_list_codes(left_id, right_id)==0):
+				self._ins_element(left_id, right_id);
+				#print("type 1 ins");
+			else:
+				return self.df[(self.df[self.left_id] == left_id)][self.CODE_COL_NAME].tolist()[0];    #.index.tolist()[0];
+        # 2 - M2M
+		elif (self.link_type == 2):
+			if (self._in_list_codes(left_id, right_id)==0): 
+				self._ins_element(left_id, right_id);
+				#print("type 2 ins");
+			else:
+				return self.df[(self.df[self.left_id] == left_id)
+					|(self.df[self.right_id] == right_id)][self.CODE_COL_NAME].tolist()[0];    #.index.tolist()[0];
+        # 3 - M2O
+		elif (self.link_type == 3):
+			if (self._in_list_codes(left_id, right_id)==0): 
+				self._ins_element(left_id, right_id);
+				#print("type 3 ins");
+			else:
+				# если тип соединения 0 (O2O), то считается вхождение 
+				# и левого ид и правого
+				return self.df[(self.df[self.right_id] == right_id)][self.CODE_COL_NAME].tolist()[0];    #.index.tolist()[0];
+
     
 	def appended(self, left_id, right_id):
 		"""проверить и добавить элемент если нет. 
-        Если элемента не было, то добавить и вернуть 0, 
+        Если тип соединения 0 (O2O) и элемента не было, то добавить и вернуть 0, 
         если элемент был, то вернуть 1"""
-		if self._in_list_codes(left_id, right_id) == 0:
-			return 0;
+		#print("link_type: " + str(self.link_type));
+		#print("self._in_list_codes(left_id, right_id)("+str(left_id)+", "+ str(right_id)+"): " + str(self._in_list_codes(left_id, right_id)));
+		
+		if self._in_list_codes(left_id, right_id)==0:
+			if self.link_type == 0 \
+					and (self._in_list_left(left_id)!=0 or self._in_list_right(right_id)!=0):
+				print("0 reject insertion: "+str(left_id)+" "+str(right_id));
+				return 0;
+			elif self.link_type == 1 \
+					and (self._in_list_codes(left_id, right_id)!=0):
+				print("1 reject insertion: "+str(left_id)+" "+str(right_id));
+				return 0;
+			elif self.link_type == 3 \
+					and (self._in_list_codes(left_id, right_id)!=0):
+				print("3 reject insertion: "+str(left_id)+" "+str(right_id));
+				return 0;
+			else:
+				self._ins_element(left_id, right_id);
+				return 1;
 		else:
-			self._ins_element(left_id, right_id);
-			return 1;
+			print("reject insertion: "+str(left_id)+" "+str(right_id));
+			return 0;
     
 	def append(self, left_id, right_id):
 		"отметить элемент name"
-		print('Df_val_cnt append', left_id, right_id);
+		#print('Df_val_cnt append', left_id, right_id);
+		
 		self.appended(left_id, right_id);
         
 	def delete(self, left_id, right_id):
@@ -529,24 +593,129 @@ class Df_link(Df_val_cnt):
 				, columns=[self.bk, self.src_system_id, self.load_dt]
                  , index_label=self.ind_col_name);
 
+
+class Df_sattelite(Df_val_cnt):
+    "класс спутника по Data Vault"
+    CODE_COL_NAME = 'code';
+	
+    def __init__(self, df_file_name = 'df_sattelite.csv'
+            	, main_entity_code = 'main_entity_code'
+                , from_dt = 'from_dt'
+            	, to_dt = 'to_dt'
+            	, ind_col_name = 'ind'
+                , list_of_attributes = ['attr1']
+                ):
+        "инициализация"
+        self.df_file_name = df_file_name;
+        self.from_dt = from_dt;
+        self.to_dt = to_dt;
+        self.ind_col_name = ind_col_name;
+        self.code_col_name = self.CODE_COL_NAME;
+		
+        print('--init Df_link with "', df_file_name, '"');
+		
+        if os.path.isfile(df_file_name):
+            self.df = pd.read_csv(df_file_name, index_col = ind_col_name);
+			#print(self.df);
+			# проверю существование колонок. Если нету - создам
+            for el in [self.code_col_name, from_dt, to_dt].append(list_of_attributes):
+                if not el in self.df.columns:
+                    self.df[el] = None;
+                    self.df.loc[:, el] = 0;
+            self.code = self.df[self.code_col_name].max() + 1;
+        else:
+            self.df = pd.DataFrame(columns = [self.code_col_name, left_id, right_id, from_dt, to_dt]);
+            self.code = 1;
 			
-			
-			
+    def _in_list_codes(self, left_id, right_id):
+        "получить код строк соответствующих кодам left_id, right_id"
+        list_ind = self.df[(self.df[self.left_id] == left_id)
+				&(self.df[self.right_id] == right_id)][self.CODE_COL_NAME].tolist();    #.index.tolist();
+        if list_ind ==[]:
+            return 0
+        else:
+            return list_ind[0];	#len(list_ind);
+	
+    def _in_list_left(self, left_id):
+        "Возвращает признак наличия левого кода среди активных связей"
+        list_ind = self.df[(self.df[self.left_id] == left_id)][self.CODE_COL_NAME].tolist();    #.index.tolist();
+        if list_ind ==[]:
+            return 0
+        else:
+            return list_ind[0];	#len(list_ind);
+    
+    def _in_list_right(self, right_id):
+        "Возвращает признак наличия правого кода среди активных связей"
+        list_ind = self.df[(self.df[self.right_id] == right_id)][self.CODE_COL_NAME].tolist();    #.index.tolist();
+        if list_ind ==[]:
+            return 0
+        else:
+            return list_ind[0];	#len(list_ind);
+    
+    def _ins_element(self, left_id, right_id):
+        "добавить связь left_id и right_id"
+        self.df = self.df.append({self.code_col_name: self.code 
+							, self.left_id: left_id
+                            , self.right_id: right_id
+                            #, self.from_dt: datetime.now()
+                            , self.from_dt: str(date.today())
+                            #, self.to_dt: '9999-12-31 23:59:59.99991'
+                            , self.to_dt: '9999-12-31'
+                            }, ignore_index=True);
+        self.code += 1;
+
+
+    def get_index(self, left_id, right_id):
+        "получить индекс связи left_id и right_id, если нету, то вставить и получить."
+        pass;
+
+    
+    def appended(self, left_id, right_id):
+        """проверить и добавить элемент если нет. 
+        Если тип соединения 0 (O2O) и элемента не было, то добавить и вернуть 0, 
+        если элемент был, то вернуть 1"""
+		#print("link_type: " + str(self.link_type));
+		#print("self._in_list_codes(left_id, right_id)("+str(left_id)+", "+ str(right_id)+"): " + str(self._in_list_codes(left_id, right_id)));
+
+        pass;
+    
+    def append(self, left_id, right_id):
+        "отметить элемент name"
+		#print('Df_val_cnt append', left_id, right_id);
+		
+        self.appended(left_id, right_id);
+        
+    def delete(self, left_id, right_id):
+        "закрыть привязку left_id к right_id"
+        pass;
+        
+    def change(left_id, right_id):
+        pass;
+        
+    def save(self):
+        "сохранить"
+        print('df_name_file: ', self.df_file_name);
+        self.df.to_csv(self.df_file_name
+				, columns=[self.bk, self.src_system_id, self.load_dt]
+                 , index_label=self.ind_col_name);
+
+	
+
 # проверка Df_val_cnt
-df_email = Df_val_cnt('email.csv');
-print();
-df_email.append('brin@gmail.com');
-df_email.append('bezos@gmail.com');
-df_email.append('thanks@gmail.com');
-df_email.print();
-print('code: ', df_email.get_code('thanks@gmail.com'));
-df_email.append('tliri@gmail.com');
-df_email.appended('bezos@gmail.com');
-df_email.append('bezos@gmail.com');
-df_email.print();
-df_email.delete('thanks@gmail.com');
-df_email.print();
-df_email.save();
+#df_email = Df_val_cnt('email.csv');
+#print();
+#df_email.append('brin@gmail.com');
+#df_email.append('bezos@gmail.com');
+#df_email.append('thanks@gmail.com');
+#df_email.print();
+#print('code: ', df_email.get_code('thanks@gmail.com'));
+#df_email.append('tliri@gmail.com');
+#df_email.appended('bezos@gmail.com');
+#df_email.append('bezos@gmail.com');
+#df_email.print();
+#df_email.delete('thanks@gmail.com');
+#df_email.print();
+#df_email.save();
 
 #dfnam = Df_name();
 #dfnam=Df_val_cnt('names.csv');
@@ -598,9 +767,65 @@ df_email.save();
 #fhfio.print();
         
         
+# проверка Df_link
+#print("-- -- -- type 0");
+#df_lnk0 = Df_link('tst_link0.csv');
+#df_lnk0.print();
+#df_lnk0.append(1, 1);
+#df_lnk0.print();
+#df_lnk0.append(1, 2);	# не должна сработать
+#df_lnk0.append(1, 1);	# не должна сработать
+#df_lnk0.append(2, 1);	# не должна сработать
+#df_lnk0.append(2, 3);
+#df_lnk0.append(2, 2);	# не должна сработать
+#df_lnk0.print();
+
+##print("-- -- -- type 1");
+#df_lnk1 = Df_link('tst_link1.csv', 1);
+##df_lnk1.print();
+#df_lnk1.append(1, 1);
+#df_lnk1.print();
+#df_lnk1.append(1, 2);
+#df_lnk1.append(2, 1);
+#df_lnk1.append(2, 2);	
+#df_lnk1.append(2, 3);
+#df_lnk1.append(2, 2);	# не должна сработать
+#df_lnk1.append(1, 2);	# не должна сработать
+#df_lnk1.print();
+
+#print("-- -- -- type 2");
+#df_lnk1 = Df_link('tst_link2.csv', 2);
+#df_lnk1.print();
+#df_lnk1.append(1, 1);
+#df_lnk1.print();
+#df_lnk1.append(1, 2);
+#df_lnk1.append(2, 1);
+#df_lnk1.append(2, 2);	
+#df_lnk1.append(2, 3);
+#df_lnk1.append(2, 2);	# не должна сработать
+#df_lnk1.append(1, 2);	# не должна сработать
+#df_lnk1.print();
+
+
+#print("-- -- -- type 3");
+#df_lnk1 = Df_link('tst_link3.csv', 3);
+#df_lnk1.print();
+#df_lnk1.append(1, 1);
+#df_lnk1.print();
+#df_lnk1.append(1, 2);
+#df_lnk1.append(2, 1);
+#df_lnk1.append(2, 2);	
+#df_lnk1.append(2, 3);
+#df_lnk1.append(2, 2);	# не должна сработать
+#df_lnk1.append(1, 2);	# не должна сработать
+#df_lnk1.print();
 
 
 #print('--------');
+
+
+
+
 
 
 

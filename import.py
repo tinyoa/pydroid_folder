@@ -7,6 +7,10 @@ import os
 import pickle
 
 
+/*
+собирает справочники из файлов
+*/
+
 #вывести текущий путь
 curr_dir = os.getcwd();
 print('curr_dir = ' + curr_dir);
